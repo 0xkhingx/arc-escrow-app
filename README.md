@@ -10,10 +10,10 @@ Payer fills in agent address, task description, and USDC amount
 Clicking Lock Funds deploys a fresh escrow contract via the factory, approves USDC, and deposits in three sequential transactions
 Payer confirms completion to release funds to the agent, or disputes to freeze and eventually refund
 
-Contracts
-ContractAddressEscrowFactory0x2382d0E87F72534a4cA2D552Cf10A131bA2BC5CAUSDC (native)0x3600000000000000000000000000000000000000
-Deployed on Arc Testnet (Chain ID: 5042002). Verify on Arcscan.
-Tech stack
+| Contract                    | Address                                      |
+| --------------------------- | -------------------------------------------- |
+| EscrowFactory (✅ Verified) | `0x2382d0E87F72534a4cA2D552Cf10A131bA2BC5CA` |
+| USDC (native)               | `0x3600000000000000000000000000000000000000` |
 
 Smart contracts: Solidity + Foundry
 Frontend: React + Vite + ethers.js
