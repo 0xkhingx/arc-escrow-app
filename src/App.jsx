@@ -307,18 +307,41 @@ export default function App() {
 
   const isInputDisabled = state.status !== STATES.AWAITING_PAYMENT;
 
-  const connectWallet = async () => {
-    try {
-      if (!window.ethereum) {
-        dispatch({ type: 'SET_ERROR', message: 'MetaMask not found. Please install it.' });
-        return;
-      }
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      dispatch({ type: 'CONNECT_WALLET', address: accounts[0] });
-    } catch (err) {
-      dispatch({ type: 'SET_ERROR', message: err.message });
+const connectWallet = async () => {
+  try {
+    if (!window.ethereum) {
+      dispatch({ type: 'SET_ERROR', message: 'MetaMask not found. Please install it.' });
+      return;
     }
-  };
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    
+    // Switch to Arc testnet
+try {
+  await window.ethereum.request({
+    method: 'wallet_switchEthereumChain',
+    params: [{ chainId: '0x4cef52' }],
+  });
+} catch (switchError) {
+  // Chain not added yet — add it
+  if (switchError.code === 4902) {
+    await window.ethereum.request({
+      method: 'wallet_addEthereumChain',
+      params: [{
+        chainId: '0x4cef52',
+        chainName: 'Arc Testnet',
+        nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+        rpcUrls: ['https://rpc.testnet.arc.network'],
+        blockExplorerUrls: ['https://testnet.arcscan.app'],
+      }],
+    });
+  }
+}
+
+    dispatch({ type: 'CONNECT_WALLET', address: accounts[0] });
+  } catch (err) {
+    dispatch({ type: 'SET_ERROR', message: err.message });
+  }
+};
 
   const getContract = async () => {
     const provider = new ethers.BrowserProvider(window.ethereum);
@@ -326,18 +349,36 @@ export default function App() {
     return new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
   };
 
-  const lockFunds = async () => {
-    try {
-      const contract = await getContract();
-      const tx = await contract.deposit({
-        value: ethers.parseEther(state.amount)
-      });
-      await tx.wait();
-      dispatch({ type: 'LOCK_FUNDS' });
-    } catch (err) {
-      dispatch({ type: 'SET_ERROR', message: err.message });
-    }
-  };
+const lockFunds = async () => {
+  try {
+    console.log("amount:", state.amount);
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const amountInUnits = ethers.parseUnits(parseFloat(state.amount).toFixed(6), 6);
+    console.log("amountInUnits:", amountInUnits.toString());
+
+    // Approve USDC
+    const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+    console.log("Approving...");
+    const approveTx = await usdc.approve(CONTRACT_ADDRESS, amountInUnits);
+    console.log("Approve tx sent:", approveTx.hash);
+    const approveReceipt = await approveTx.wait();
+    console.log("Approve confirmed:", approveReceipt.status);
+
+    // Deposit
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+    console.log("Depositing...");
+    const depositTx = await contract.deposit(amountInUnits);
+    console.log("Deposit tx sent:", depositTx.hash);
+    await depositTx.wait();
+    console.log("Deposit confirmed");
+
+    dispatch({ type: 'LOCK_FUNDS' });
+  } catch (err) {
+    console.error("Full error:", err);
+    dispatch({ type: 'SET_ERROR', message: err.message });
+  }
+};
 
   const confirmCompletion = async () => {
     try {
