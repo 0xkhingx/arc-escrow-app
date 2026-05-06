@@ -69,12 +69,13 @@ const STATES = {
 const initialState = {
   status: STATES.AWAITING_PAYMENT,
   walletConnected: false,
-  walletAddress: "",
-  error: "",
-  agentAddress: "",
-  taskDescription: "",
-  amount: "",
-  escrowAddress: "",
+  walletAddress: '',
+  escrowAddress: '',
+  error: '',
+  loading: false,
+  agentAddress: '',
+  taskDescription: '',
+  amount: '',
 };
 
 function escrowReducer(state, action) {
@@ -102,6 +103,10 @@ function escrowReducer(state, action) {
       return state;
     case 'SET_ESCROW':
       return { ...state, escrowAddress: action.address };
+    case 'SET_LOADING':
+      return { ...state, loading: action.value };
+    case 'CLEAR_ERROR':
+      return { ...state, error: '' };
     default:
       return state;
   }
@@ -163,6 +168,57 @@ const Timeline = ({ status }) => {
   );
 };
 
+const ActionButtons = ({ status, isValid, onLock, onConfirm, onDispute, onResolve, loading }) => {
+  return (
+    <div className="flex flex-col gap-3 pt-2">
+      {status === STATES.AWAITING_PAYMENT && (
+        <button
+          onClick={onLock}
+          disabled={!isValid || loading}
+          className="w-full py-2.5 text-sm font-medium text-white bg-[#0052FF] rounded-md hover:bg-[#003FCC] disabled:bg-[#E6EAF0] disabled:text-[#6B7280] transition-colors"
+        >
+          {loading ? 'Processing...' : 'Lock Funds'}
+        </button>
+      )}
+
+      {status === STATES.AWAITING_COMPLETION && (
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="w-full py-2.5 text-sm font-medium text-white bg-[#0052FF] rounded-md hover:bg-[#003FCC] disabled:opacity-50 transition-colors"
+          >
+            {loading ? 'Processing...' : 'Confirm Completion'}
+          </button>
+          <button
+            onClick={onDispute}
+            disabled={loading}
+            className="w-full py-2.5 text-sm font-medium text-[#FF3B30] bg-transparent border border-[#FF3B30] rounded-md hover:bg-[#FFF5F5] disabled:opacity-50 transition-colors"
+          >
+            {loading ? 'Processing...' : 'Dispute Task'}
+          </button>
+        </div>
+      )}
+
+      {status === STATES.DISPUTED && (
+        <button
+          onClick={onResolve}
+          disabled={loading}
+          className="w-full py-2.5 text-sm font-medium text-[#0A0A0A] bg-[#E6EAF0] rounded-md hover:bg-[#D1D5DB] disabled:opacity-50 transition-colors"
+        >
+          {loading ? 'Processing...' : 'Resolve & Refund'}
+        </button>
+      )}
+
+      {(status === STATES.COMPLETE || status === STATES.REFUNDED) && (
+        <div className="w-full py-2.5 text-sm font-medium text-[#6B7280] text-center bg-[#F7F9FC] border border-[#E6EAF0] rounded-md">
+          Contract Closed
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function App() {
   const [state, dispatch] = useReducer(escrowReducer, initialState);
   const hash = useMemo(() => generateHash(state.taskDescription), [state.taskDescription]);
@@ -206,33 +262,38 @@ export default function App() {
   return new ethers.Contract(state.escrowAddress, ABI, signer);
 };
 
-  const lockFunds = async () => {
+const lockFunds = async () => {
   try {
+    dispatch({ type: 'SET_LOADING', value: true });
+
+    // Validate agent address
+    if (!ethers.isAddress(state.agentAddress)) {
+      dispatch({ type: 'SET_ERROR', message: 'Invalid agent address. Please check and try again.' });
+      dispatch({ type: 'SET_LOADING', value: false });
+      return;
+    }
+
     const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
     const amountInUnits = ethers.parseUnits(parseFloat(state.amount).toFixed(6), 6);
+    const agentAddress = ethers.getAddress(state.agentAddress); // normalize checksum
 
-    // Step 1: Create escrow via factory (no approval needed yet)
     const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
     const conditionHash = ethers.id(state.taskDescription);
-    const tx = await factory.createEscrow(state.agentAddress, conditionHash);
+    const tx = await factory.createEscrow(agentAddress, conditionHash);
     const receipt = await tx.wait();
 
-    // Step 2: Get new escrow address from event
     const event = receipt.logs.find(log => {
-      try {
-        return factory.interface.parseLog(log)?.name === 'EscrowCreated';
-      } catch { return false; }
+      try { return factory.interface.parseLog(log)?.name === 'EscrowCreated'; }
+      catch { return false; }
     });
     const parsedEvent = factory.interface.parseLog(event);
     const newEscrowAddress = parsedEvent.args.escrowAddress;
 
-    // Step 3: Approve USDC to the new escrow address only
     const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
     const approveTx = await usdc.approve(newEscrowAddress, amountInUnits);
     await approveTx.wait();
 
-    // Step 4: Deposit into the new escrow
     const escrow = new ethers.Contract(newEscrowAddress, ABI, signer);
     const depositTx = await escrow.deposit(amountInUnits);
     await depositTx.wait();
@@ -241,41 +302,52 @@ export default function App() {
     dispatch({ type: 'LOCK_FUNDS' });
   } catch (err) {
     dispatch({ type: 'SET_ERROR', message: err.message });
+  } finally {
+    dispatch({ type: 'SET_LOADING', value: false });
   }
 };
 
-  const confirmCompletion = async () => {
-    try {
-      const contract = await getContract();
-      const tx = await contract.confirmCompletion();
-      await tx.wait();
-      dispatch({ type: 'CONFIRM_COMPLETION' });
-    } catch (err) {
-      dispatch({ type: 'SET_ERROR', message: err.message });
-    }
-  };
+const confirmCompletion = async () => {
+  try {
+    dispatch({ type: 'SET_LOADING', value: true });
+    const contract = await getContract();
+    const tx = await contract.confirmCompletion();
+    await tx.wait();
+    dispatch({ type: 'CONFIRM_COMPLETION' });
+  } catch (err) {
+    dispatch({ type: 'SET_ERROR', message: err.message });
+  } finally {
+    dispatch({ type: 'SET_LOADING', value: false });
+  }
+};
 
-  const disputeTask = async () => {
-    try {
-      const contract = await getContract();
-      const tx = await contract.dispute();
-      await tx.wait();
-      dispatch({ type: 'DISPUTE' });
-    } catch (err) {
-      dispatch({ type: 'SET_ERROR', message: err.message });
-    }
-  };
+const disputeTask = async () => {
+  try {
+    dispatch({ type: 'SET_LOADING', value: true });
+    const contract = await getContract();
+    const tx = await contract.dispute();
+    await tx.wait();
+    dispatch({ type: 'DISPUTE' });
+  } catch (err) {
+    dispatch({ type: 'SET_ERROR', message: err.message });
+  } finally {
+    dispatch({ type: 'SET_LOADING', value: false });
+  }
+};
 
-  const resolveRefund = async () => {
-    try {
-      const contract = await getContract();
-      const tx = await contract.refund();
-      await tx.wait();
-      dispatch({ type: 'RESOLVE_REFUND' });
-    } catch (err) {
-      dispatch({ type: 'SET_ERROR', message: err.message });
-    }
-  };
+const resolveRefund = async () => {
+  try {
+    dispatch({ type: 'SET_LOADING', value: true });
+    const contract = await getContract();
+    const tx = await contract.refund();
+    await tx.wait();
+    dispatch({ type: 'RESOLVE_REFUND' });
+  } catch (err) {
+    dispatch({ type: 'SET_ERROR', message: err.message });
+  } finally {
+    dispatch({ type: 'SET_LOADING', value: false });
+  }
+};
 
   return (
     <div className="min-h-screen max-w-7xl mx-auto px-6 pb-20">
@@ -355,25 +427,38 @@ export default function App() {
                 <div className="bg-[#0052FF] px-3 py-1.5 rounded-xl text-[10px] font-black shadow-lg shadow-blue-900/20">USDC</div>
               </div>
 
-              {state.status === STATES.AWAITING_PAYMENT ? (
-                <button 
-                  onClick={lockFunds}
-                  disabled={!isFormValid}
-                  className="w-full py-5 rounded-2xl bg-[#0052FF] text-white font-bold hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:grayscale"
-                >
-                  Execute Lock
-                </button>
-              ) : (
-                <div className="space-y-3">
-                  {state.status === STATES.AWAITING_COMPLETION && (
-                    <>
-                      <button onClick={confirmCompletion} className="w-full py-4 rounded-2xl bg-white text-black font-bold">Release Funds</button>
-                      <button onClick={disputeTask} className="w-full py-4 rounded-2xl border border-white/20 text-white/60 font-bold text-xs hover:bg-white/5">Initiate Dispute</button>
-                    </>
-                  )}
-                  {state.status === STATES.DISPUTED && (
-                    <button onClick={resolveRefund} className="w-full py-4 rounded-2xl bg-white text-black font-bold">Process Refund</button>
-                  )}
+              <ActionButtons
+                status={state.status}
+                isValid={isFormValid}
+                onLock={lockFunds}
+                onConfirm={confirmCompletion}
+                onDispute={disputeTask}
+                onResolve={resolveRefund}
+                loading={state.loading}
+              />
+
+              {state.error && (
+                <div className="w-full px-3 py-2 text-xs text-[#FF3B30] bg-[#FFF5F5] border border-[#FF3B30] rounded-md flex items-center justify-between mt-4">
+                  <span>{state.error}</span>
+                  <button
+                    onClick={() => dispatch({ type: 'CLEAR_ERROR' })}
+                    className="ml-2 text-[#FF3B30] font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {state.escrowAddress && (
+                <div className="w-full px-3 py-2 text-xs text-[#6B7280] bg-[#F7F9FC] border border-[#E6EAF0] rounded-md font-mono break-all mt-4">
+                  Escrow: <a
+                    href={`https://testnet.arcscan.app/address/${state.escrowAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#0052FF] hover:underline"
+                  >
+                    {state.escrowAddress}
+                  </a>
                 </div>
               )}
             </div>
