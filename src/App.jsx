@@ -2,8 +2,62 @@ import React, { useReducer, useMemo } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, ABI, USDC_ADDRESS, USDC_ABI } from './constants';
 
-// --- State Machine & Logic ---
+// --- Minimalist Animations & Modern Layout Styles ---
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F4F4F4;
+      color: #1A1A1A;
+      margin: 0;
+    }
 
+    .dashboard-card {
+      background: #FFFFFF;
+      border-radius: 32px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+      border: 1px solid rgba(0, 0, 0, 0.02);
+    }
+
+    .input-field {
+      background: #F9F9F9;
+      border: 1px solid #EAEAEA;
+      border-radius: 20px;
+      padding: 18px 24px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: #0052FF;
+      background: #FFFFFF;
+    }
+
+    @keyframes entrance {
+      from { opacity: 0; transform: translateY(15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .animate-entrance {
+      animation: entrance 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes pulse-soft {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.7; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .pulse-indicator {
+      animation: pulse-soft 2s infinite ease-in-out;
+    }
+  `}</style>
+);
+
+// --- Logic (UNTOUCHED) ---
 const STATES = {
   AWAITING_PAYMENT: "AWAITING_PAYMENT",
   AWAITING_COMPLETION: "AWAITING_COMPLETION",
@@ -25,42 +79,25 @@ const initialState = {
 function escrowReducer(state, action) {
   switch (action.type) {
     case "CONNECT_WALLET":
-      return {
-        ...state,
-        walletConnected: true,
-        walletAddress: action.address,
-        error: "",
-      };
+      return { ...state, walletConnected: true, walletAddress: action.address, error: "" };
     case "DISCONNECT_WALLET":
-      return {
-        ...state,
-        walletConnected: false,
-        walletAddress: "",
-      };
+      return { ...state, walletConnected: false, walletAddress: "" };
     case "SET_ERROR":
       return { ...state, error: action.message };
     case "UPDATE_FIELD":
       if (state.status !== STATES.AWAITING_PAYMENT) return state;
       return { ...state, [action.field]: action.value };
     case "LOCK_FUNDS":
-      if (state.status === STATES.AWAITING_PAYMENT) {
-        return { ...state, status: STATES.AWAITING_COMPLETION };
-      }
+      if (state.status === STATES.AWAITING_PAYMENT) return { ...state, status: STATES.AWAITING_COMPLETION };
       return state;
     case "CONFIRM_COMPLETION":
-      if (state.status === STATES.AWAITING_COMPLETION) {
-        return { ...state, status: STATES.COMPLETE };
-      }
+      if (state.status === STATES.AWAITING_COMPLETION) return { ...state, status: STATES.COMPLETE };
       return state;
     case "DISPUTE":
-      if (state.status === STATES.AWAITING_COMPLETION) {
-        return { ...state, status: STATES.DISPUTED };
-      }
+      if (state.status === STATES.AWAITING_COMPLETION) return { ...state, status: STATES.DISPUTED };
       return state;
     case "RESOLVE_REFUND":
-      if (state.status === STATES.DISPUTED) {
-        return { ...state, status: STATES.REFUNDED };
-      }
+      if (state.status === STATES.DISPUTED) return { ...state, status: STATES.REFUNDED };
       return state;
     default:
       return state;
@@ -72,276 +109,93 @@ const generateHash = (text) => {
   return ethers.id(text);
 };
 
-// --- Components ---
+// --- Specialized Components (Referencing image_5c13cb.jpg) ---
 
-const Header = ({ walletConnected, walletAddress, onConnectWallet }) => (
-  <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-[#FFFFFF] border-b border-[#E6EAF0]">
-    <div className="flex flex-col">
-      <h1 className="text-lg font-medium text-[#0A0A0A] font-sans tracking-tight">
-        ARC Escrow
-      </h1>
-      <span className="text-xs text-[#6B7280]">
-        Trustless Agent Payments on Arc
-      </span>
+const AppHeader = ({ connected, address, onConnect }) => (
+  <header className="flex justify-between items-center py-8 px-4">
+    <div className="flex items-center gap-4">
+      <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white text-xs font-black italic">№</div>
+      <div>
+        <h1 className="text-sm font-bold tracking-tight">ARC</h1>
+        <p className="text-[11px] text-gray-400 font-medium">Escrow Dashboard</p>
+      </div>
     </div>
-    <button
-      onClick={onConnectWallet}
-      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-        walletConnected
-          ? "bg-[#E6EAF0] text-[#0A0A0A]"
-          : "bg-[#0052FF] text-white hover:bg-[#003FCC]"
-      }`}
-    >
-      {walletConnected
-        ? walletAddress.slice(0, 6) + '...' + walletAddress.slice(-4)
-        : "Connect Wallet"}
-    </button>
+    
+    <div className="flex items-center gap-6">
+      <button 
+        onClick={onConnect}
+        className="px-6 py-2.5 rounded-full bg-white text-xs font-bold border border-gray-100 shadow-sm hover:shadow-md transition-all"
+      >
+        {connected ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Connect Wallet"}
+      </button>
+      <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white">
+        <div className="w-full h-full bg-gradient-to-tr from-blue-400 to-blue-600" />
+      </div>
+    </div>
   </header>
 );
 
-const InputField = ({
-  label,
-  type = "text",
-  value,
-  onChange,
-  placeholder,
-  disabled,
-  multiline,
-}) => (
-  <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-medium text-[#6B7280]">{label}</label>
-    {multiline ? (
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        rows={3}
-        className="w-full px-3 py-2 text-sm text-[#0A0A0A] bg-transparent border border-[#E6EAF0] rounded-md focus:outline-none focus:border-[#0052FF] focus:ring-1 focus:ring-[#0052FF] disabled:bg-[#F7F9FC] disabled:text-[#6B7280] resize-none"
-      />
-    ) : (
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        className="w-full px-3 py-2 text-sm text-[#0A0A0A] bg-transparent border border-[#E6EAF0] rounded-md focus:outline-none focus:border-[#0052FF] focus:ring-1 focus:ring-[#0052FF] disabled:bg-[#F7F9FC] disabled:text-[#6B7280]"
-      />
-    )}
-  </div>
-);
-
-const AmountInput = ({ value, onChange, disabled }) => (
-  <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-medium text-[#6B7280]">Payment Amount</label>
-    <div className="relative flex items-center">
-      <input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="0.00"
-        disabled={disabled}
-        className="w-full pl-3 pr-16 py-2 text-sm text-[#0A0A0A] bg-transparent border border-[#E6EAF0] rounded-md focus:outline-none focus:border-[#0052FF] focus:ring-1 focus:ring-[#0052FF] disabled:bg-[#F7F9FC] disabled:text-[#6B7280]"
-      />
-      <div className="absolute right-3 flex items-center gap-1 text-xs font-medium text-[#0A0A0A]">
-        <div className="w-4 h-4 bg-[#2775CA] rounded-full flex items-center justify-center text-white text-[8px]">
-          $
-        </div>
-        USDC
-      </div>
-    </div>
-  </div>
-);
-
-const HashPreview = ({ hash }) => (
-  <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-medium text-[#6B7280]">Condition Hash</label>
-    <div className="w-full px-3 py-2 text-xs text-[#6B7280] bg-[#F7F9FC] border border-[#E6EAF0] rounded-md font-mono break-all">
-      {hash}
-    </div>
-  </div>
-);
-
-const ActionButtons = ({ status, isValid, onLock, onConfirm, onDispute, onResolve }) => {
-  return (
-    <div className="flex flex-col gap-3 pt-2">
-      {status === STATES.AWAITING_PAYMENT && (
-        <button
-          onClick={onLock}
-          disabled={!isValid}
-          className="w-full py-2.5 text-sm font-medium text-white bg-[#0052FF] rounded-md hover:bg-[#003FCC] disabled:bg-[#E6EAF0] disabled:text-[#6B7280] transition-colors"
-        >
-          Lock Funds
-        </button>
-      )}
-
-      {status === STATES.AWAITING_COMPLETION && (
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={onConfirm}
-            className="w-full py-2.5 text-sm font-medium text-white bg-[#0052FF] rounded-md hover:bg-[#003FCC] transition-colors"
-          >
-            Confirm Completion
-          </button>
-          <button
-            onClick={onDispute}
-            className="w-full py-2.5 text-sm font-medium text-[#FF3B30] bg-transparent border border-[#FF3B30] rounded-md hover:bg-[#FFF5F5] transition-colors"
-          >
-            Dispute Task
-          </button>
-        </div>
-      )}
-
-      {status === STATES.DISPUTED && (
-        <button
-          onClick={onResolve}
-          className="w-full py-2.5 text-sm font-medium text-[#0A0A0A] bg-[#E6EAF0] rounded-md hover:bg-[#D1D5DB] transition-colors"
-        >
-          Resolve & Refund
-        </button>
-      )}
-
-      {(status === STATES.COMPLETE || status === STATES.REFUNDED) && (
-        <div className="w-full py-2.5 text-sm font-medium text-[#6B7280] text-center bg-[#F7F9FC] border border-[#E6EAF0] rounded-md">
-          Contract Closed
-        </div>
-      )}
-    </div>
-  );
-};
-
-const StatusTimeline = ({ status }) => {
+const Timeline = ({ status }) => {
   const steps = [
-    { key: "payment", label: "Payment Locked" },
-    { key: "completion", label: "Task Execution" },
-    {
-      key: "resolution",
-      label:
-        status === STATES.REFUNDED
-          ? "Refunded"
-          : status === STATES.DISPUTED
-            ? "Disputed"
-            : "Completed",
-    },
+    { id: STATES.AWAITING_PAYMENT, label: "Awaiting Lock" },
+    { id: STATES.AWAITING_COMPLETION, label: "Executing Task" },
+    { id: STATES.COMPLETE, label: "Finalized" }
   ];
 
-  const getStepState = (stepIndex) => {
-    if (status === STATES.AWAITING_PAYMENT)
-      return stepIndex === 0 ? "active" : "upcoming";
-    if (status === STATES.AWAITING_COMPLETION)
-      return stepIndex === 0 ? "completed" : stepIndex === 1 ? "active" : "upcoming";
-    if (status === STATES.COMPLETE) return "completed";
-    if (status === STATES.DISPUTED)
-      return stepIndex === 0 ? "completed" : stepIndex === 1 ? "error" : "upcoming";
-    if (status === STATES.REFUNDED)
-      return stepIndex === 2 ? "error" : "completed";
-    return "upcoming";
-  };
-
   return (
-    <div className="flex items-center justify-between w-full max-w-[520px] mx-auto mt-8 px-4">
-      {steps.map((step, index) => {
-        const stepState = getStepState(index);
+    <div className="flex gap-4 mt-8">
+      {steps.map((step, i) => {
+        const isCurrent = status === step.id;
+        const isPast = steps.findIndex(s => s.id === status) > i;
         return (
-          <React.Fragment key={step.key}>
-            <div className="flex flex-col items-center gap-2">
-              <div
-                className={`w-3 h-3 rounded-full border-2 ${
-                  stepState === "completed"
-                    ? "bg-[#0052FF] border-[#0052FF]"
-                    : stepState === "active"
-                      ? "bg-white border-[#0052FF]"
-                      : stepState === "error"
-                        ? "bg-[#FF3B30] border-[#FF3B30]"
-                        : "bg-[#F7F9FC] border-[#E6EAF0]"
-                }`}
-              />
-              <span
-                className={`text-[11px] font-medium ${
-                  stepState === "active" || stepState === "completed"
-                    ? "text-[#0A0A0A]"
-                    : stepState === "error"
-                      ? "text-[#FF3B30]"
-                      : "text-[#6B7280]"
-                }`}
-              >
-                {step.label}
-              </span>
-            </div>
-            {index < steps.length - 1 && (
-              <div
-                className={`flex-1 h-px mx-4 ${
-                  getStepState(index + 1) === "upcoming" ? "bg-[#E6EAF0]" : "bg-[#0052FF]"
-                }`}
-              />
-            )}
-          </React.Fragment>
+          <div key={step.id} className="flex flex-col gap-2">
+            <div className={`h-1.5 w-16 rounded-full transition-all duration-700 ${isPast || isCurrent ? 'bg-[#0052FF]' : 'bg-gray-200'}`} />
+            <span className={`text-[10px] font-bold uppercase tracking-widest ${isCurrent ? 'text-black' : 'text-gray-300'}`}>
+              {step.label}
+            </span>
+          </div>
         );
       })}
     </div>
   );
 };
 
-const EscrowCard = ({ children }) => (
-  <div className="w-full max-w-[520px] mx-auto bg-[#FFFFFF] border border-[#E6EAF0] shadow-sm rounded-xl p-6 flex flex-col gap-5">
-    {children}
-  </div>
-);
-
-// --- Main App ---
-
 export default function App() {
   const [state, dispatch] = useReducer(escrowReducer, initialState);
+  const hash = useMemo(() => generateHash(state.taskDescription), [state.taskDescription]);
+  const isFormValid = state.walletConnected && state.agentAddress.trim() !== "" && state.taskDescription.trim() !== "" && Number(state.amount) > 0;
 
-  const hash = useMemo(
-    () => generateHash(state.taskDescription),
-    [state.taskDescription]
-  );
-
-  const isFormValid =
-    state.walletConnected &&
-    state.agentAddress.trim() !== "" &&
-    state.taskDescription.trim() !== "" &&
-    Number(state.amount) > 0;
-
-  const isInputDisabled = state.status !== STATES.AWAITING_PAYMENT;
-
-const connectWallet = async () => {
-  try {
-    if (!window.ethereum) {
-      dispatch({ type: 'SET_ERROR', message: 'MetaMask not found. Please install it.' });
-      return;
+  const connectWallet = async () => {
+    try {
+      if (!window.ethereum) {
+        dispatch({ type: 'SET_ERROR', message: 'MetaMask not found. Please install it.' });
+        return;
+      }
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x4cef52' }],
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x4cef52',
+              chainName: 'Arc Testnet',
+              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+              rpcUrls: ['https://rpc.testnet.arc.network'],
+              blockExplorerUrls: ['https://testnet.arcscan.app'],
+            }],
+          });
+        }
+      }
+      dispatch({ type: 'CONNECT_WALLET', address: accounts[0] });
+    } catch (err) {
+      dispatch({ type: 'SET_ERROR', message: err.message });
     }
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    
-    // Switch to Arc testnet
-try {
-  await window.ethereum.request({
-    method: 'wallet_switchEthereumChain',
-    params: [{ chainId: '0x4cef52' }],
-  });
-} catch (switchError) {
-  // Chain not added yet — add it
-  if (switchError.code === 4902) {
-    await window.ethereum.request({
-      method: 'wallet_addEthereumChain',
-      params: [{
-        chainId: '0x4cef52',
-        chainName: 'Arc Testnet',
-        nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-        rpcUrls: ['https://rpc.testnet.arc.network'],
-        blockExplorerUrls: ['https://testnet.arcscan.app'],
-      }],
-    });
-  }
-}
-
-    dispatch({ type: 'CONNECT_WALLET', address: accounts[0] });
-  } catch (err) {
-    dispatch({ type: 'SET_ERROR', message: err.message });
-  }
-};
+  };
 
   const getContract = async () => {
     const provider = new ethers.BrowserProvider(window.ethereum);
@@ -349,36 +203,22 @@ try {
     return new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
   };
 
-const lockFunds = async () => {
-  try {
-    console.log("amount:", state.amount);
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-    const amountInUnits = ethers.parseUnits(parseFloat(state.amount).toFixed(6), 6);
-    console.log("amountInUnits:", amountInUnits.toString());
-
-    // Approve USDC
-    const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
-    console.log("Approving...");
-    const approveTx = await usdc.approve(CONTRACT_ADDRESS, amountInUnits);
-    console.log("Approve tx sent:", approveTx.hash);
-    const approveReceipt = await approveTx.wait();
-    console.log("Approve confirmed:", approveReceipt.status);
-
-    // Deposit
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-    console.log("Depositing...");
-    const depositTx = await contract.deposit(amountInUnits);
-    console.log("Deposit tx sent:", depositTx.hash);
-    await depositTx.wait();
-    console.log("Deposit confirmed");
-
-    dispatch({ type: 'LOCK_FUNDS' });
-  } catch (err) {
-    console.error("Full error:", err);
-    dispatch({ type: 'SET_ERROR', message: err.message });
-  }
-};
+  const lockFunds = async () => {
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const amountInUnits = ethers.parseUnits(parseFloat(state.amount).toFixed(6), 6);
+      const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+      const approveTx = await usdc.approve(CONTRACT_ADDRESS, amountInUnits);
+      await approveTx.wait();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+      const depositTx = await contract.deposit(amountInUnits);
+      await depositTx.wait();
+      dispatch({ type: 'LOCK_FUNDS' });
+    } catch (err) {
+      dispatch({ type: 'SET_ERROR', message: err.message });
+    }
+  };
 
   const confirmCompletion = async () => {
     try {
@@ -414,60 +254,129 @@ const lockFunds = async () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F9FC] text-[#0A0A0A] font-sans flex flex-col selection:bg-[#0052FF] selection:text-white">
-      <Header
-        walletConnected={state.walletConnected}
-        walletAddress={state.walletAddress}
-        onConnectWallet={connectWallet}
-      />
+    <div className="min-h-screen max-w-7xl mx-auto px-6 pb-20">
+      <GlobalStyles />
+      <AppHeader connected={state.walletConnected} address={state.walletAddress} onConnect={connectWallet} />
 
-      {state.error && (
-        <div className="w-full max-w-[520px] mx-auto mt-4 px-4 py-2 text-sm text-[#FF3B30] bg-[#FFF5F5] border border-[#FF3B30] rounded-md">
-          {state.error}
+      <div className="animate-entrance">
+        {/* Hero Section */}
+        <div className="mb-12 mt-6">
+          <h2 className="text-4xl font-bold tracking-tight mb-2">Hey, Need help? 👋</h2>
+          <p className="text-2xl text-gray-400 font-medium tracking-tight">Review and manage your agent settlements.</p>
         </div>
-      )}
 
-      <main className="flex-1 flex flex-col items-center py-12 px-4">
-        <EscrowCard>
-          <InputField
-            label="Agent Address"
-            placeholder="0x..."
-            value={state.agentAddress}
-            onChange={(val) => dispatch({ type: "UPDATE_FIELD", field: "agentAddress", value: val })}
-            disabled={isInputDisabled}
-          />
+        <div className="grid grid-cols-12 gap-8 items-start">
+          
+          {/* Main Controls Card */}
+          <div className="col-span-12 lg:col-span-8 dashboard-card p-10">
+            <div className="flex justify-between items-center mb-10">
+              <h3 className="text-sm font-extrabold uppercase tracking-[0.2em] text-gray-400">Settlement Details</h3>
+              <div className="px-4 py-1.5 bg-gray-50 rounded-lg text-[10px] font-bold text-gray-500 border border-gray-100">
+                2026 ACTIVE SESSION
+              </div>
+            </div>
 
-          <InputField
-            label="Task Description"
-            placeholder="Define the exact parameters for agent execution..."
-            value={state.taskDescription}
-            onChange={(val) => dispatch({ type: "UPDATE_FIELD", field: "taskDescription", value: val })}
-            disabled={isInputDisabled}
-            multiline
-          />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <div className="flex flex-col gap-3">
+                <label className="text-xs font-bold ml-1">Agent Destination</label>
+                <input 
+                  className="input-field" 
+                  placeholder="0x..." 
+                  value={state.agentAddress}
+                  disabled={state.status !== STATES.AWAITING_PAYMENT}
+                  onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "agentAddress", value: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-3">
+                <label className="text-xs font-bold ml-1">Security Hash</label>
+                <div className="input-field bg-gray-50 text-gray-400 font-mono truncate text-[12px] flex items-center">
+                  {hash}
+                </div>
+              </div>
+            </div>
 
-          <HashPreview hash={hash} />
+            <div className="flex flex-col gap-3 mb-10">
+              <label className="text-xs font-bold ml-1">Task Manifest</label>
+              <textarea 
+                rows={4}
+                className="input-field resize-none" 
+                placeholder="Describe specific conditions for fund release..."
+                value={state.taskDescription}
+                disabled={state.status !== STATES.AWAITING_PAYMENT}
+                onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "taskDescription", value: e.target.value })}
+              />
+            </div>
 
-          <AmountInput
-            value={state.amount}
-            onChange={(val) => dispatch({ type: "UPDATE_FIELD", field: "amount", value: val })}
-            disabled={isInputDisabled}
-          />
+            <Timeline status={state.status} />
+          </div>
 
-          <div className="w-full h-px bg-[#E6EAF0] my-2" />
+          {/* Action Card */}
+          <div className="col-span-12 lg:col-span-4 space-y-8">
+            <div className="dashboard-card p-8 bg-black text-white relative overflow-hidden">
+              {/* Geometric pattern overlay */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10" />
+              
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-6">Lock Amount</h3>
+              
+              <div className="flex items-end gap-2 mb-8">
+                <span className="text-4xl font-extrabold">$</span>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  className="bg-white/90 border-none text-4xl font-extrabold text-black focus:outline-none focus:bg-white w-full placeholder:text-gray-500"
+                  value={state.amount}
+                  disabled={state.status !== STATES.AWAITING_PAYMENT}
+                  onChange={(e) => dispatch({ type: "UPDATE_FIELD", field: "amount", value: e.target.value })}
+                />
+                <div className="bg-[#0052FF] px-3 py-1.5 rounded-xl text-[10px] font-black shadow-lg shadow-blue-900/20">USDC</div>
+              </div>
 
-          <ActionButtons
-            status={state.status}
-            isValid={isFormValid}
-            onLock={lockFunds}
-            onConfirm={confirmCompletion}
-            onDispute={disputeTask}
-            onResolve={resolveRefund}
-          />
-        </EscrowCard>
+              {state.status === STATES.AWAITING_PAYMENT ? (
+                <button 
+                  onClick={lockFunds}
+                  disabled={!isFormValid}
+                  className="w-full py-5 rounded-2xl bg-[#0052FF] text-white font-bold hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:grayscale"
+                >
+                  Execute Lock
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  {state.status === STATES.AWAITING_COMPLETION && (
+                    <>
+                      <button onClick={confirmCompletion} className="w-full py-4 rounded-2xl bg-white text-black font-bold">Release Funds</button>
+                      <button onClick={disputeTask} className="w-full py-4 rounded-2xl border border-white/20 text-white/60 font-bold text-xs hover:bg-white/5">Initiate Dispute</button>
+                    </>
+                  )}
+                  {state.status === STATES.DISPUTED && (
+                    <button onClick={resolveRefund} className="w-full py-4 rounded-2xl bg-white text-black font-bold">Process Refund</button>
+                  )}
+                </div>
+              )}
+            </div>
 
-        <StatusTimeline status={state.status} />
-      </main>
+            {/* Status Visualizer */}
+            <div className="dashboard-card p-8 flex flex-col items-center justify-center gap-4">
+               <div className="relative flex items-center justify-center">
+                  <svg className="w-24 h-24 transform -rotate-90">
+                    <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-100" />
+                    <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" 
+                      className="text-[#0052FF] transition-all duration-1000"
+                      strokeDasharray="251.2"
+                      strokeDashoffset={state.status === STATES.COMPLETE ? "0" : state.status === STATES.AWAITING_COMPLETION ? "125" : "251"}
+                    />
+                  </svg>
+                  <div className="absolute flex flex-col items-center">
+                    <span className="text-xs font-black">{state.status === STATES.COMPLETE ? "100%" : state.status === STATES.AWAITING_COMPLETION ? "50%" : "0%"}</span>
+                  </div>
+               </div>
+               <div className="text-center">
+                 <p className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Current Growth</p>
+                 <p className="text-sm font-bold">Session Integrity: High</p>
+               </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
