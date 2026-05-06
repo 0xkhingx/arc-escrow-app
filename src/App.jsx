@@ -1,6 +1,7 @@
 import React, { useReducer, useMemo } from 'react';
 import { ethers } from 'ethers';
 import { FACTORY_ADDRESS, FACTORY_ABI, ABI, USDC_ADDRESS, USDC_ABI } from './constants';
+import { saveEscrow, getEscrowHistory } from './storage';
 
 // --- Minimalist Animations & Modern Layout Styles ---
 const GlobalStyles = () => (
@@ -59,11 +60,11 @@ const GlobalStyles = () => (
 
 // --- Logic (UNTOUCHED) ---
 const STATES = {
-  AWAITING_PAYMENT: "AWAITING_PAYMENT",
-  AWAITING_COMPLETION: "AWAITING_COMPLETION",
-  COMPLETE: "COMPLETE",
-  DISPUTED: "DISPUTED",
-  REFUNDED: "REFUNDED",
+  AWAITING_PAYMENT: "awaiting_payment",
+  AWAITING_COMPLETION: "awaiting_completion",
+  COMPLETE: "complete",
+  DISPUTED: "disputed",
+  REFUNDED: "refunded",
 };
 
 const initialState = {
@@ -73,6 +74,8 @@ const initialState = {
   escrowAddress: '',
   error: '',
   loading: false,
+  history: [],
+  historyOpen: false,
   agentAddress: '',
   taskDescription: '',
   amount: '',
@@ -82,8 +85,15 @@ function escrowReducer(state, action) {
   switch (action.type) {
     case "CONNECT_WALLET":
       return { ...state, walletConnected: true, walletAddress: action.address, error: "" };
-    case "DISCONNECT_WALLET":
-      return { ...state, walletConnected: false, walletAddress: "" };
+    case 'DISCONNECT_WALLET':
+      return {
+        ...state,
+        walletConnected: false,
+        walletAddress: '',
+        history: [],
+        escrowAddress: '',
+        status: STATES.AWAITING_PAYMENT
+      };
     case "SET_ERROR":
       return { ...state, error: action.message };
     case "UPDATE_FIELD":
@@ -107,6 +117,10 @@ function escrowReducer(state, action) {
       return { ...state, loading: action.value };
     case 'CLEAR_ERROR':
       return { ...state, error: '' };
+    case 'SET_HISTORY':
+      return { ...state, history: action.history };
+    case 'TOGGLE_HISTORY':
+      return { ...state, historyOpen: !state.historyOpen };
     default:
       return state;
   }
@@ -119,7 +133,7 @@ const generateHash = (text) => {
 
 // --- Specialized Components (Referencing image_5c13cb.jpg) ---
 
-const AppHeader = ({ connected, address, onConnect }) => (
+const AppHeader = ({ connected, address, onConnect, onDisconnect, onHistoryOpen, historyCount }) => (
   <header className="flex justify-between items-center py-8 px-4">
     <div className="flex items-center gap-4">
       <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white text-xs font-black italic">№</div>
@@ -128,14 +142,41 @@ const AppHeader = ({ connected, address, onConnect }) => (
         <p className="text-[11px] text-gray-400 font-medium">Escrow Dashboard</p>
       </div>
     </div>
-    
-    <div className="flex items-center gap-6">
-      <button 
-        onClick={onConnect}
-        className="px-6 py-2.5 rounded-full bg-white text-xs font-bold border border-gray-100 shadow-sm hover:shadow-md transition-all"
-      >
-        {connected ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Connect Wallet"}
-      </button>
+
+    <div className="flex items-center gap-3">
+      {connected && (
+        <button
+          onClick={onHistoryOpen}
+          className="px-4 py-2 rounded-full bg-white text-xs font-bold border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+        >
+          History
+          {historyCount > 0 && (
+            <span className="w-4 h-4 rounded-full bg-[#0052FF] text-white text-[9px] flex items-center justify-center">
+              {historyCount}
+            </span>
+          )}
+        </button>
+      )}
+      {connected ? (
+        <>
+          <span className="px-4 py-2 rounded-full bg-white text-xs font-bold border border-gray-100 shadow-sm">
+            {address.slice(0, 6)}...{address.slice(-4)}
+          </span>
+          <button
+            onClick={onDisconnect}
+            className="px-4 py-2 rounded-full bg-red-50 text-xs font-bold text-red-500 border border-red-100 hover:bg-red-100 transition-all"
+          >
+            Disconnect
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={onConnect}
+          className="px-6 py-2.5 rounded-full bg-white text-xs font-bold border border-gray-100 shadow-sm hover:shadow-md transition-all"
+        >
+          Connect Wallet
+        </button>
+      )}
       <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white">
         <div className="w-full h-full bg-gradient-to-tr from-blue-400 to-blue-600" />
       </div>
@@ -167,6 +208,60 @@ const Timeline = ({ status }) => {
     </div>
   );
 };
+
+const HistoryPanel = ({ history, isOpen, onClose }) => (
+  <>
+    {/* Backdrop */}
+    {isOpen && (
+      <div
+        className="fixed inset-0 bg-black/20 z-40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+    )}
+
+    {/* Panel */}
+    <div className={`fixed top-0 right-0 h-full w-full max-w-sm bg-white z-50 shadow-2xl transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className="flex items-center justify-between p-6 border-b border-gray-100">
+        <h2 className="text-sm font-extrabold uppercase tracking-widest">Past Escrows</h2>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="p-6 overflow-y-auto h-full pb-20">
+        {!history || history.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-40 gap-3">
+            <p className="text-sm text-gray-400 font-medium">No escrows yet</p>
+            <p className="text-xs text-gray-300 text-center">Your created escrows will appear here</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {history.map((escrow, index) => (
+              <div key={index} className="p-4 bg-gray-50 rounded-2xl flex flex-col gap-2 border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <a
+                    href={`https://testnet.arcscan.app/address/${escrow.address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-mono text-[#0052FF] hover:underline"
+                  >
+                    {escrow.address.slice(0, 6)}...{escrow.address.slice(-4)}
+                  </a>
+                  <span className="text-xs font-bold">{escrow.amount} USDC</span>
+                </div>
+                <p className="text-xs text-gray-500 line-clamp-2">{escrow.task}</p>
+                <p className="text-[10px] text-gray-300">{new Date(escrow.createdAt).toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  </>
+);
 
 const ActionButtons = ({ status, isValid, onLock, onConfirm, onDispute, onResolve, loading }) => {
   return (
@@ -251,6 +346,8 @@ export default function App() {
         }
       }
       dispatch({ type: 'CONNECT_WALLET', address: accounts[0] });
+      const history = getEscrowHistory(accounts[0]);
+      dispatch({ type: 'SET_HISTORY', history });
     } catch (err) {
       dispatch({ type: 'SET_ERROR', message: err.message });
     }
@@ -299,6 +396,15 @@ const lockFunds = async () => {
     await depositTx.wait();
 
     dispatch({ type: 'SET_ESCROW', address: newEscrowAddress });
+    const escrowData = {
+      address: newEscrowAddress,
+      agent: agentAddress,
+      task: state.taskDescription,
+      amount: state.amount,
+      createdAt: new Date().toISOString(),
+    };
+    saveEscrow(state.walletAddress, escrowData);
+    dispatch({ type: 'SET_HISTORY', history: getEscrowHistory(state.walletAddress) });
     dispatch({ type: 'LOCK_FUNDS' });
   } catch (err) {
     dispatch({ type: 'SET_ERROR', message: err.message });
@@ -352,7 +458,20 @@ const resolveRefund = async () => {
   return (
     <div className="min-h-screen max-w-7xl mx-auto px-6 pb-20">
       <GlobalStyles />
-      <AppHeader connected={state.walletConnected} address={state.walletAddress} onConnect={connectWallet} />
+      <AppHeader
+        connected={state.walletConnected}
+        address={state.walletAddress}
+        onConnect={connectWallet}
+        onDisconnect={() => dispatch({ type: 'DISCONNECT_WALLET' })}
+        onHistoryOpen={() => dispatch({ type: 'TOGGLE_HISTORY' })}
+        historyCount={state.history.length}
+      />
+
+      <HistoryPanel
+        history={state.history}
+        isOpen={state.historyOpen}
+        onClose={() => dispatch({ type: 'TOGGLE_HISTORY' })}
+      />
 
       <div className="animate-entrance">
         {/* Hero Section */}
