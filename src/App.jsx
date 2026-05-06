@@ -1,6 +1,6 @@
 import React, { useReducer, useMemo } from 'react';
 import { ethers } from 'ethers';
-import { CONTRACT_ADDRESS, ABI, USDC_ADDRESS, USDC_ABI } from './constants';
+import { FACTORY_ADDRESS, FACTORY_ABI, ABI, USDC_ADDRESS, USDC_ABI } from './constants';
 
 // --- Minimalist Animations & Modern Layout Styles ---
 const GlobalStyles = () => (
@@ -74,6 +74,7 @@ const initialState = {
   agentAddress: "",
   taskDescription: "",
   amount: "",
+  escrowAddress: "",
 };
 
 function escrowReducer(state, action) {
@@ -99,6 +100,8 @@ function escrowReducer(state, action) {
     case "RESOLVE_REFUND":
       if (state.status === STATES.DISPUTED) return { ...state, status: STATES.REFUNDED };
       return state;
+    case 'SET_ESCROW':
+      return { ...state, escrowAddress: action.address };
     default:
       return state;
   }
@@ -197,28 +200,49 @@ export default function App() {
     }
   };
 
-  const getContract = async () => {
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-    return new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-  };
+ const getContract = async () => {
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  return new ethers.Contract(state.escrowAddress, ABI, signer);
+};
 
   const lockFunds = async () => {
-    try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const amountInUnits = ethers.parseUnits(parseFloat(state.amount).toFixed(6), 6);
-      const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
-      const approveTx = await usdc.approve(CONTRACT_ADDRESS, amountInUnits);
-      await approveTx.wait();
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-      const depositTx = await contract.deposit(amountInUnits);
-      await depositTx.wait();
-      dispatch({ type: 'LOCK_FUNDS' });
-    } catch (err) {
-      dispatch({ type: 'SET_ERROR', message: err.message });
-    }
-  };
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const amountInUnits = ethers.parseUnits(parseFloat(state.amount).toFixed(6), 6);
+
+    // Step 1: Create escrow via factory (no approval needed yet)
+    const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+    const conditionHash = ethers.id(state.taskDescription);
+    const tx = await factory.createEscrow(state.agentAddress, conditionHash);
+    const receipt = await tx.wait();
+
+    // Step 2: Get new escrow address from event
+    const event = receipt.logs.find(log => {
+      try {
+        return factory.interface.parseLog(log)?.name === 'EscrowCreated';
+      } catch { return false; }
+    });
+    const parsedEvent = factory.interface.parseLog(event);
+    const newEscrowAddress = parsedEvent.args.escrowAddress;
+
+    // Step 3: Approve USDC to the new escrow address only
+    const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+    const approveTx = await usdc.approve(newEscrowAddress, amountInUnits);
+    await approveTx.wait();
+
+    // Step 4: Deposit into the new escrow
+    const escrow = new ethers.Contract(newEscrowAddress, ABI, signer);
+    const depositTx = await escrow.deposit(amountInUnits);
+    await depositTx.wait();
+
+    dispatch({ type: 'SET_ESCROW', address: newEscrowAddress });
+    dispatch({ type: 'LOCK_FUNDS' });
+  } catch (err) {
+    dispatch({ type: 'SET_ERROR', message: err.message });
+  }
+};
 
   const confirmCompletion = async () => {
     try {

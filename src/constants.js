@@ -1,4 +1,5 @@
-export const CONTRACT_ADDRESS = "0x7FF46E3C9BD8a43C46CF2Ea53310C17FEbb15143";
+export const CONTRACT_ADDRESS = "0x21e5f5F14A78f506419dDB141fc61420C58cC3F4"; // keep for reference
+export const FACTORY_ADDRESS = "0x2382d0E87F72534a4cA2D552Cf10A131bA2BC5CA";
 
 export const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
@@ -7,8 +8,37 @@ export const USDC_ABI = [
   "function balanceOf(address account) external view returns (uint256)",
 ];
 
+export const FACTORY_ABI = [
+  {
+    type: "function",
+    name: "createEscrow",
+    inputs: [
+      { name: "_agent", type: "address" },
+      { name: "_conditionHash", type: "bytes32" },
+    ],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getEscrows",
+    inputs: [],
+    outputs: [{ name: "", type: "address[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "EscrowCreated",
+    inputs: [
+      { name: "escrowAddress", type: "address", indexed: true },
+      { name: "payer", type: "address", indexed: true },
+      { name: "agent", type: "address", indexed: true },
+      { name: "conditionHash", type: "bytes32", indexed: false },
+    ],
+  },
+];
+
 export const ABI = [
-  // ... keep everything the same but update deposit:
   {
     type: "function",
     name: "deposit",
