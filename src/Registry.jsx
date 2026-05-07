@@ -60,12 +60,20 @@ const AgentCard = ({ agent, reputation, onHire }) => {
         )}
       </div>
 
-      <button
-        onClick={() => navigate(`/agent/${agent.wallet}`)}
-        className="w-full py-2 rounded-xl bg-[#0052FF] text-white text-xs font-bold hover:bg-[#003FCC] transition-colors"
-      >
-        View Profile
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => navigate(`/agent/${agent.wallet}`)}
+          className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition-colors"
+        >
+          View Profile
+        </button>
+        <button
+          onClick={() => onHire(agent.wallet)}
+          className="flex-1 py-2 rounded-xl bg-[#0052FF] text-white text-xs font-bold hover:bg-[#003FCC] transition-colors"
+        >
+          Hire
+        </button>
+      </div>
     </div>
   );
 };
