@@ -5,6 +5,7 @@ import { saveEscrow, getEscrowHistory } from './storage';
 import Registry from './Registry';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import AgentProfile from './AgentProfile';
+import { getProvider, getSigner } from './provider';
 
 // --- Minimalist Animations & Modern Layout Styles ---
 const GlobalStyles = () => (
@@ -363,29 +364,12 @@ export default function App() {
   const connectWallet = async () => {
     try {
       if (!window.ethereum) {
-        dispatch({ type: 'SET_ERROR', message: 'MetaMask not found. Please install it.' });
+        dispatch({ type: 'SET_ERROR', message: 'No wallet detected. Please install MetaMask.' });
         return;
       }
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x4cef52' }],
-        });
-      } catch (switchError) {
-        if (switchError.code === 4902) {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: '0x4cef52',
-              chainName: 'Arc Testnet',
-              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-              rpcUrls: ['https://rpc.testnet.arc.network'],
-              blockExplorerUrls: ['https://testnet.arcscan.app'],
-            }],
-          });
-        }
-      }
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts'
+      });
       dispatch({ type: 'CONNECT_WALLET', address: accounts[0] });
       const history = getEscrowHistory(accounts[0]);
       dispatch({ type: 'SET_HISTORY', history });
@@ -394,27 +378,24 @@ export default function App() {
     }
   };
 
- const getContract = async () => {
-  const provider = new ethers.BrowserProvider(window.ethereum);
-  const signer = await provider.getSigner();
-  return new ethers.Contract(state.escrowAddress, ABI, signer);
-};
+  const getContract = async () => {
+    const signer = await getSigner();
+    return new ethers.Contract(state.escrowAddress, ABI, signer);
+  };
 
 const lockFunds = async () => {
   try {
     dispatch({ type: 'SET_LOADING', value: true });
 
-    // Validate agent address
     if (!ethers.isAddress(state.agentAddress)) {
       dispatch({ type: 'SET_ERROR', message: 'Invalid agent address. Please check and try again.' });
       dispatch({ type: 'SET_LOADING', value: false });
       return;
     }
 
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
+    const signer = await getSigner();
     const amountInUnits = ethers.parseUnits(parseFloat(state.amount).toFixed(6), 6);
-    const agentAddress = ethers.getAddress(state.agentAddress); // normalize checksum
+    const agentAddress = ethers.getAddress(state.agentAddress);
 
     const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
     const conditionHash = ethers.id(state.taskDescription);
@@ -436,7 +417,6 @@ const lockFunds = async () => {
     const depositTx = await escrow.deposit(amountInUnits);
     await depositTx.wait();
 
-    dispatch({ type: 'SET_ESCROW', address: newEscrowAddress });
     const escrowData = {
       address: newEscrowAddress,
       agent: agentAddress,
@@ -446,6 +426,7 @@ const lockFunds = async () => {
     };
     saveEscrow(state.walletAddress, escrowData);
     dispatch({ type: 'SET_HISTORY', history: getEscrowHistory(state.walletAddress) });
+    dispatch({ type: 'SET_ESCROW', address: newEscrowAddress });
     dispatch({ type: 'LOCK_FUNDS' });
   } catch (err) {
     dispatch({ type: 'SET_ERROR', message: err.message });

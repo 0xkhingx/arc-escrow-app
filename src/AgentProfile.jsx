@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
 import { REGISTRY_ADDRESS, REGISTRY_ABI } from './constants';
+import { getProvider } from './provider';
 
 // --- Global Styles matching App.jsx ---
 const GlobalStyles = () => (
@@ -34,10 +35,7 @@ const GlobalStyles = () => (
 );
 
 const getRegistry = async () => {
-  const provider = window.ethereum
-    ? new ethers.BrowserProvider(window.ethereum)
-    : new ethers.JsonRpcProvider("https://rpc.testnet.arc.network");
-  return new ethers.Contract(REGISTRY_ADDRESS, REGISTRY_ABI, provider);
+  return new ethers.Contract(REGISTRY_ADDRESS, REGISTRY_ABI, getProvider());
 };
 
 const ReputationBar = ({ score }) => {

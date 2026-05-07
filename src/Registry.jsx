@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
 import { REGISTRY_ADDRESS, REGISTRY_ABI } from './constants';
+import { getProvider, getSigner } from './provider';
 
 const SERVICE_TYPES = ['Data', 'Security', 'Development', 'Research', 'Finance', 'Other'];
 
 const getRegistry = async (withSigner = false) => {
-  const provider = new ethers.BrowserProvider(window.ethereum);
   if (withSigner) {
-    const signer = await provider.getSigner();
+    const signer = await getSigner();
     return new ethers.Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer);
   }
-  return new ethers.Contract(REGISTRY_ADDRESS, REGISTRY_ABI, provider);
+  return new ethers.Contract(REGISTRY_ADDRESS, REGISTRY_ABI, getProvider());
 };
 
 const ReputationBadge = ({ score }) => {
