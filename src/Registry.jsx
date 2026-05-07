@@ -14,6 +14,30 @@ const getRegistry = async (withSigner = false) => {
   return new ethers.Contract(REGISTRY_ADDRESS, REGISTRY_ABI, getProvider());
 };
 
+const SkeletonCard = () => (
+  <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm animate-pulse">
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-2">
+        <div className="h-4 w-32 bg-gray-100 rounded-full" />
+        <div className="h-3 w-24 bg-gray-100 rounded-full" />
+      </div>
+      <div className="h-5 w-16 bg-gray-100 rounded-full" />
+    </div>
+    <div className="flex flex-col gap-1.5">
+      <div className="h-3 w-full bg-gray-100 rounded-full" />
+      <div className="h-3 w-3/4 bg-gray-100 rounded-full" />
+    </div>
+    <div className="flex items-center gap-3 pt-1">
+      <div className="h-6 w-20 bg-gray-100 rounded-full" />
+      <div className="h-3 w-32 bg-gray-100 rounded-full" />
+    </div>
+    <div className="flex gap-2">
+      <div className="flex-1 h-9 bg-gray-100 rounded-xl" />
+      <div className="flex-1 h-9 bg-gray-100 rounded-xl" />
+    </div>
+  </div>
+);
+
 const ReputationBadge = ({ score }) => {
   const level = score === 0 ? 'New' : score < 50 ? 'Rising' : score < 200 ? 'Trusted' : 'Elite';
   const colors = {
@@ -248,8 +272,10 @@ const Registry = ({ walletAddress, onHireAgent }) => {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-xs text-gray-400">Loading agents...</p>
+          <div className="grid grid-cols-1 gap-4">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-2">
