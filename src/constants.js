@@ -1,5 +1,5 @@
-export const FACTORY_ADDRESS = "0x0034dB6eB38a11A4d93B9562276670283AD5d10a";
-export const REGISTRY_ADDRESS = "0xEFE6Eaf3E2cD1C85A3687E73BdA424F7B39A139D";
+export const FACTORY_ADDRESS = "0x6A51717e4a5aD1E63100A3a835821458EB579e11";
+export const REGISTRY_ADDRESS = "0x5fCd6339B9B4eCCf027a3A190345812085411E4E";
 export const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 export const USDC_ABI = [
@@ -24,6 +24,13 @@ export const FACTORY_ABI = [
     inputs: [],
     outputs: [{ name: "", type: "address[]" }],
     stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "setRegistry",
+    inputs: [{ name: "_registry", type: "address" }],
+    outputs: [],
+    stateMutability: "nonpayable",
   },
   {
     type: "event",
