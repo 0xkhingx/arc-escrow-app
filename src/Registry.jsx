@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
 import { REGISTRY_ADDRESS, REGISTRY_ABI } from './constants';
 
@@ -29,6 +30,7 @@ const ReputationBadge = ({ score }) => {
 };
 
 const AgentCard = ({ agent, reputation, onHire }) => {
+  const navigate = useNavigate();
   const settled = Number(agent.totalUSDCSettled) / 1_000_000;
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow">
@@ -59,10 +61,10 @@ const AgentCard = ({ agent, reputation, onHire }) => {
       </div>
 
       <button
-        onClick={() => onHire(agent.wallet)}
+        onClick={() => navigate(`/agent/${agent.wallet}`)}
         className="w-full py-2 rounded-xl bg-[#0052FF] text-white text-xs font-bold hover:bg-[#003FCC] transition-colors"
       >
-        Hire This Agent
+        View Profile
       </button>
     </div>
   );

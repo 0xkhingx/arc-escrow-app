@@ -1,8 +1,10 @@
-import React, { useReducer, useMemo } from 'react';
+import React, { useReducer, useMemo, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { FACTORY_ADDRESS, FACTORY_ABI, ABI, USDC_ADDRESS, USDC_ABI } from './constants';
 import { saveEscrow, getEscrowHistory } from './storage';
 import Registry from './Registry';
+import { Routes, Route, useNavigate } from 'react-router-dom';
+import AgentProfile from './AgentProfile';
 
 // --- Minimalist Animations & Modern Layout Styles ---
 const GlobalStyles = () => (
@@ -343,6 +345,18 @@ const ActionButtons = ({ status, isValid, onLock, onConfirm, onDispute, onResolv
 
 export default function App() {
   const [state, dispatch] = useReducer(escrowReducer, initialState);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hireAddress = params.get('hire');
+    if (hireAddress) {
+      dispatch({ type: 'UPDATE_FIELD', field: 'agentAddress', value: hireAddress });
+      dispatch({ type: 'SET_VIEW', view: 'escrow' });
+      navigate('/', { replace: true });
+    }
+  }, []);
+
   const hash = useMemo(() => generateHash(state.taskDescription), [state.taskDescription]);
   const isFormValid = state.walletConnected && state.agentAddress.trim() !== "" && state.taskDescription.trim() !== "" && Number(state.amount) > 0;
 
@@ -483,8 +497,11 @@ const resolveRefund = async () => {
 };
 
   return (
-    <div className="min-h-screen max-w-7xl mx-auto px-3 sm:px-6 pb-10 sm:pb-20">
-      <GlobalStyles />
+    <Routes>
+      <Route path="/agent/:address" element={<AgentProfile />} />
+      <Route path="/*" element={
+        <div className="min-h-screen max-w-7xl mx-auto px-3 sm:px-6 pb-10 sm:pb-20">
+          <GlobalStyles />
       <AppHeader
         connected={state.walletConnected}
         address={state.walletAddress}
@@ -645,5 +662,7 @@ const resolveRefund = async () => {
         )}
       </div>
     </div>
-  );
+    } />
+  </Routes>
+);
 }
