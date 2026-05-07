@@ -5,6 +5,7 @@ import { saveEscrow, getEscrowHistory } from './storage';
 import Registry from './Registry';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import AgentProfile from './AgentProfile';
+import Landing from './Landing';
 import { getProvider, getSigner } from './provider';
 
 // --- Minimalist Animations & Modern Layout Styles ---
@@ -351,10 +352,16 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const hireAddress = params.get('hire');
+    const view = params.get('view');
+
     if (hireAddress) {
       dispatch({ type: 'UPDATE_FIELD', field: 'agentAddress', value: hireAddress });
       dispatch({ type: 'SET_VIEW', view: 'escrow' });
-      navigate('/', { replace: true });
+      navigate('/app', { replace: true });
+    }
+    if (view) {
+      dispatch({ type: 'SET_VIEW', view });
+      navigate('/app', { replace: true });
     }
   }, []);
 
@@ -479,8 +486,9 @@ const resolveRefund = async () => {
 
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/agent/:address" element={<AgentProfile />} />
-      <Route path="/*" element={
+      <Route path="/app" element={
         <div className="min-h-screen max-w-7xl mx-auto px-3 sm:px-6 pb-10 sm:pb-20">
           <GlobalStyles />
       <AppHeader
