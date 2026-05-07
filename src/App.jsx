@@ -2,6 +2,7 @@ import React, { useReducer, useMemo } from 'react';
 import { ethers } from 'ethers';
 import { FACTORY_ADDRESS, FACTORY_ABI, ABI, USDC_ADDRESS, USDC_ABI } from './constants';
 import { saveEscrow, getEscrowHistory } from './storage';
+import Registry from './Registry';
 
 // --- Minimalist Animations & Modern Layout Styles ---
 const GlobalStyles = () => (
@@ -76,6 +77,7 @@ const initialState = {
   loading: false,
   history: [],
   historyOpen: false,
+  view: 'escrow',
   agentAddress: '',
   taskDescription: '',
   amount: '',
@@ -121,6 +123,8 @@ function escrowReducer(state, action) {
       return { ...state, history: action.history };
     case 'TOGGLE_HISTORY':
       return { ...state, historyOpen: !state.historyOpen };
+    case 'SET_VIEW':
+      return { ...state, view: action.view };
     default:
       return state;
   }
@@ -133,7 +137,7 @@ const generateHash = (text) => {
 
 // --- Specialized Components (Referencing image_5c13cb.jpg) ---
 
-const AppHeader = ({ connected, address, onConnect, onDisconnect, onHistoryOpen, historyCount }) => (
+const AppHeader = ({ connected, address, onConnect, onDisconnect, onHistoryOpen, historyCount, currentView, onViewChange }) => (
   <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 sm:py-8 px-4 gap-4 sm:gap-0">
     <div className="flex items-center gap-4">
       <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white text-xs font-black italic">№</div>
@@ -141,6 +145,29 @@ const AppHeader = ({ connected, address, onConnect, onDisconnect, onHistoryOpen,
         <h1 className="text-sm font-bold tracking-tight">ARC</h1>
         <p className="text-[11px] text-gray-400 font-medium">Escrow Dashboard</p>
       </div>
+    </div>
+
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => onViewChange('escrow')}
+        className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+          currentView === 'escrow'
+            ? 'bg-[#0052FF] text-white'
+            : 'bg-white text-gray-600 border border-gray-100 shadow-sm hover:shadow-md'
+        }`}
+      >
+        Escrow
+      </button>
+      <button
+        onClick={() => onViewChange('registry')}
+        className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+          currentView === 'registry'
+            ? 'bg-[#0052FF] text-white'
+            : 'bg-white text-gray-600 border border-gray-100 shadow-sm hover:shadow-md'
+        }`}
+      >
+        Agents
+      </button>
     </div>
 
     <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
@@ -465,6 +492,8 @@ const resolveRefund = async () => {
         onDisconnect={() => dispatch({ type: 'DISCONNECT_WALLET' })}
         onHistoryOpen={() => dispatch({ type: 'TOGGLE_HISTORY' })}
         historyCount={state.history.length}
+        currentView={state.view}
+        onViewChange={(v) => dispatch({ type: 'SET_VIEW', view: v })}
       />
 
       <HistoryPanel
@@ -480,9 +509,10 @@ const resolveRefund = async () => {
           <p className="text-lg sm:text-2xl text-gray-400 font-medium tracking-tight">Review and manage your agent settlements.</p>
         </div>
 
-        <div className="grid grid-cols-12 gap-4 sm:gap-8 items-start">
+        {state.view === 'escrow' ? (
+          <div className="grid grid-cols-12 gap-4 sm:gap-8 items-start">
 
-          {/* Main Controls Card */}
+            {/* Main Controls Card */}
           <div className="col-span-12 lg:col-span-8 dashboard-card p-4 sm:p-8 lg:p-10">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-10 gap-3 sm:gap-0">
               <h3 className="text-sm font-extrabold uppercase tracking-[0.2em] text-gray-400">Settlement Details</h3>
@@ -604,6 +634,15 @@ const resolveRefund = async () => {
             </div>
           </div>
         </div>
+        ) : (
+          <Registry
+            walletAddress={state.walletAddress}
+            onHireAgent={(address) => {
+              dispatch({ type: 'SET_VIEW', view: 'escrow' });
+              dispatch({ type: 'UPDATE_FIELD', field: 'agentAddress', value: address });
+            }}
+          />
+        )}
       </div>
     </div>
   );
